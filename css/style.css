@@ -1,0 +1,61 @@
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+  background: #ECECEC;
+}
+
+a {
+  color: #00B7FF;
+}
+
+.card-keeper {
+  text-align: center;
+}
+
+.card {
+  width: 125px;
+  height: 175px;
+  border-radius: 10px;
+  padding: 5px;
+  border: 1px solid transparent;
+  background: #fff;
+  position: relative;
+  display: inline-block;
+  margin-bottom: 5px;
+}
+
+.card.diamond,
+.card.heart {
+  border-color: red;
+  color: red;
+}
+
+.card.club,
+.card.spade {
+  color: black;
+  border-color: black;
+}
+
+.card .corner {
+  font-size: 16px;
+  text-align: right;
+  line-height: 12px;
+}
+
+.card .big {
+  font-size: 42px;
+  height: 80px;
+  line-height: 80px;
+  text-align: center;
+  position: absolute;
+  left: 0px;
+  width: 100%;
+  height: 80px;
+  margin-top: -40px;
+  top: 50%;
+}
+
+.card-actions {
+  padding: 5px;
+  text-align: center;
+}
