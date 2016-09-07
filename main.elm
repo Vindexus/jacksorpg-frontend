@@ -15,6 +15,7 @@ type alias Model =
   , id : Int
   , held: Held
   , error : String
+  , deals: (List Hand)
   }
 
 type alias Suit = String
@@ -33,6 +34,8 @@ type alias Held = Array Bool
 type Msg
   = MorePlease
   | FetchSucceed String
+  | FetchHandSucceed Hand
+  | FetchDealsSucceed (List Hand)
   | FetchFail Http.Error
   | HoldCard Int
   | Deal
@@ -43,6 +46,7 @@ initModel =
   , id = 0
   , error = ""
   , held = initHeld
+  , deals = []
   }, getHand)
 
 initHand : Hand
@@ -57,10 +61,6 @@ initHand =
 initHeld : Held
 initHeld = 
   Array.repeat 5 False
-
-handToText : Hand -> Html Msg
-handToText cards = 
-  text "Cards to Hand"
 
 heldToButtons : Held -> List (Html Msg)
 heldToButtons held =
@@ -78,10 +78,17 @@ handToHtml cards =
 
 card : Card -> Html Msg
 card card = 
-  div [ class ("card " ++ card.value ++ " " ++ card.suit)]
+  div [ class ("card " ++ card.value ++ " " ++ card.suit), style [("padding", "0px 0px 1px 0")] ]
       [ div [ class "corder"]
             [ text (card.value ++ card.suit) ]
       ]
+
+dealsToHtml : (List Hand) -> List (Html Msg)
+dealsToHtml deals =
+  List.map (\d ->
+    div [ class "hand", style [("padding", "0px 0px 10px 0")] ]
+      (handToHtml d)
+    ) deals
 
 cardToString : Card -> String
 cardToString card =
@@ -101,26 +108,35 @@ getHand : Cmd Msg
 getHand = 
   let
     url =
-      "http://localhost:3000/newhand"
+      "http://localhost:3010/newhand"
   in
-    Task.perform FetchFail FetchSucceed (Http.get decodeHand url)
+    Task.perform FetchFail FetchHandSucceed (Http.get (Json.at ["hand"] decodeHand) url)
 
 getDeals : Model -> Cmd Msg
 getDeals model =
   let
     --TODO: Add hand and held to the URL
     url =
-      "http://localhost:3000/getdeals?hand=" ++ (handToUrlString model.hand) ++ "&held=" ++ (heldToUrlString model.held)
+      "http://localhost:3010/getdeals?hand=" ++ (handToUrlString model.hand) ++ "&held=" ++ (heldToUrlString model.held)
     in
-      Task.perform FetchFail FetchSucceed (Http.get decodeDeals url)
+      Task.perform FetchFail FetchDealsSucceed (Http.get decodeDeals url)
 
-decodeHand : Json.Decoder String
+decodeCard : Json.Decoder Card
+decodeCard =
+  Json.object2 (\suit value ->
+    { suit = suit
+    , value = value }
+  )
+  ("suit" := Json.string)
+  ("value" := Json.string)
+
+decodeHand : Json.Decoder (List Card)
 decodeHand =
-  Json.at ["hand", "0","suit"] Json.string
+  Json.list decodeCard
 
-decodeDeals : Json.Decoder String
+decodeDeals : Json.Decoder (List Hand)
 decodeDeals =
-  Json.at ["deals"] Json.string
+  Json.at ["deals"] (Json.list decodeHand)
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -136,7 +152,11 @@ update msg model =
     MorePlease ->
       (model, Cmd.none)
     FetchSucceed json ->
-      ({model | error = (toString json)}, Cmd.none)
+      ({model | error = (toString json)}, Cmd.none) --TODO: Remove this I think
+    FetchHandSucceed hand ->
+      ({model | hand = hand }, Cmd.none)   
+    FetchDealsSucceed deals ->
+      ({model | deals = deals}, Cmd.none)
     FetchFail e ->
       ({ model | error = (toString e)}, Cmd.none)
     HoldCard index ->
@@ -154,7 +174,8 @@ view model =
       (handToHtml model.hand )
     , div [ class "held" ]
       (heldToButtons model.held)
-    , div [ class "footer" ] [ button [ onClick Deal ] [ text "Play" ] ] 
+    , div [ class "footer" ] [ button [ onClick Deal ] [ text "Play" ] ]
+    , div [ class "deals" ] (dealsToHtml model.deals)
     ]
 
 
