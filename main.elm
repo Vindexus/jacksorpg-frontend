@@ -15,7 +15,7 @@ type alias Model =
   , id : Int
   , held: Held
   , error : String
-  , deals: (List Hand)
+  , plays: (List Hand)
   }
 
 type alias Suit = String
@@ -32,13 +32,13 @@ type alias Hand = List Card
 type alias Held = Array Bool
 
 type Msg
-  = MorePlease
-  | FetchSucceed String
+  = FetchSucceed String
   | FetchHandSucceed Hand
-  | FetchDealsSucceed (List Hand)
+  | FetchPlaysSucceed (List Hand)
   | FetchFail Http.Error
   | HoldCard Int
   | Deal
+  | Play
 
 initModel : (Model, Cmd Msg)
 initModel = 
@@ -46,17 +46,12 @@ initModel =
   , id = 0
   , error = ""
   , held = initHeld
-  , deals = []
+  , plays = []
   }, getHand)
 
 initHand : Hand
 initHand = 
-  [ { value = "3", suit = "diamond"}
-  , { value = "J", suit = "spade" }
-  , { value = "K", suit = "spade" }
-  , { value = "7", suit = "heart" }
-  , { value = "J", suit = "diamond" }
-  ]
+  []
 
 initHeld : Held
 initHeld = 
@@ -69,12 +64,21 @@ heldToButtons held =
   in
     Array.toList (Array.indexedMap (\index h ->
       --index = increment index
-      button [ onClick (HoldCard index) ] [ (if h then (text "Unhold") else (text "Hold")) ]
+      button [ onClick (HoldCard index) ] [ (if h then (text "Don't Hold") else (text "Hold")) ]
     ) held)
 
-handToHtml : Hand -> List (Html Msg)
-handToHtml cards = 
+cardsToHtml : (List Card) -> List (Html Msg)
+cardsToHtml cards = 
   List.map card cards
+
+handToHtml : Hand -> Held -> List (Html Msg)
+handToHtml hand held = 
+  Array.toList (Array.indexedMap (\index c ->
+    div [ class "hand-card-container" ] 
+        [ card c 
+        , button [ onClick (HoldCard index) ] [ (if (Array.get index held) then (text "Don't Hold") else (text "Hold")) ]
+        ]
+  ) (Array.fromList hand))
 
 card : Card -> Html Msg
 card card = 
@@ -83,12 +87,12 @@ card card =
             [ text (card.value ++ card.suit) ]
       ]
 
-dealsToHtml : (List Hand) -> List (Html Msg)
-dealsToHtml deals =
+playsToHtml : (List Hand) -> List (Html Msg)
+playsToHtml plays =
   List.map (\d ->
     div [ class "hand", style [("padding", "0px 0px 10px 0")] ]
-      (handToHtml d)
-    ) deals
+      (cardsToHtml d)
+    ) plays
 
 cardToString : Card -> String
 cardToString card =
@@ -112,14 +116,14 @@ getHand =
   in
     Task.perform FetchFail FetchHandSucceed (Http.get (Json.at ["hand"] decodeHand) url)
 
-getDeals : Model -> Cmd Msg
-getDeals model =
+getPlays : Model -> Cmd Msg
+getPlays model =
   let
     --TODO: Add hand and held to the URL
     url =
-      "http://localhost:3010/getdeals?hand=" ++ (handToUrlString model.hand) ++ "&held=" ++ (heldToUrlString model.held)
+      "http://localhost:3010/getplays?hand=" ++ (handToUrlString model.hand) ++ "&held=" ++ (heldToUrlString model.held)
     in
-      Task.perform FetchFail FetchDealsSucceed (Http.get decodeDeals url)
+      Task.perform FetchFail FetchPlaysSucceed (Http.get decodePlays url)
 
 decodeCard : Json.Decoder Card
 decodeCard =
@@ -134,9 +138,9 @@ decodeHand : Json.Decoder (List Card)
 decodeHand =
   Json.list decodeCard
 
-decodeDeals : Json.Decoder (List Hand)
-decodeDeals =
-  Json.at ["deals"] (Json.list decodeHand)
+decodePlays : Json.Decoder (List Hand)
+decodePlays =
+  Json.at ["plays"] (Json.list decodeHand)
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -149,20 +153,20 @@ toggleHoldCard held index =
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    MorePlease ->
-      (model, Cmd.none)
     FetchSucceed json ->
       ({model | error = (toString json)}, Cmd.none) --TODO: Remove this I think
     FetchHandSucceed hand ->
       ({model | hand = hand }, Cmd.none)   
-    FetchDealsSucceed deals ->
-      ({model | deals = deals}, Cmd.none)
+    FetchPlaysSucceed plays ->
+      ({model | plays = plays}, Cmd.none)
     FetchFail e ->
       ({ model | error = (toString e)}, Cmd.none)
     HoldCard index ->
       ({ model | held = (toggleHoldCard model.held index)}, Cmd.none)
+    Play ->
+      (model, getPlays model)
     Deal ->
-      (model, getDeals model)
+      ({model | held = initHeld, hand = initHand, plays = []}, getHand)
 
 
 view : Model -> Html Msg
@@ -171,11 +175,12 @@ view model =
     [ h1 [] [ text "Hi" ]
     , div [ class "error" ] [ text model.error ]
     , div [ class "hand" ]
-      (handToHtml model.hand )
+      (handToHtml model.hand model.held )
     , div [ class "held" ]
       (heldToButtons model.held)
-    , div [ class "footer" ] [ button [ onClick Deal ] [ text "Play" ] ]
-    , div [ class "deals" ] (dealsToHtml model.deals)
+    , div [ class "footer" ] [ button [ onClick Deal ] [ text "Deal" ] ]
+    , div [ class "footer" ] [ button [ onClick Play ] [ text "Play" ] ]
+    , div [ class "plays" ] (playsToHtml model.plays)
     ]
 
 
